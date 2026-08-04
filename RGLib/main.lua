@@ -1,5 +1,6 @@
 -- RGLib (Roblox GUI Library)
 -- Многофункциональная библиотека для создания GUI
+-- Версия 1.1
 
 local RGLib = {}
 local Players = game:GetService("Players")
@@ -8,6 +9,10 @@ local Mouse = LocalPlayer:GetMouse()
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+
+-- Хранилище всех созданных GUI
+local ActiveGUIs = {}
+local IsLibraryActive = true
 
 -- Настройки по умолчанию
 local DefaultTheme = {
@@ -55,11 +60,19 @@ end
 
 -- Основной класс окна
 function RGLib:NewWindow(title, options)
+    if not IsLibraryActive then
+        error("Библиотека RGLib была выгружена!")
+        return nil
+    end
+    
     options = options or {}
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = options.Name or "RGLibGUI"
     screenGui.Parent = options.Parent or LocalPlayer.PlayerGui
     screenGui.ResetOnSpawn = false
+    
+    -- Добавляем GUI в список активных
+    table.insert(ActiveGUIs, screenGui)
     
     -- Главный фрейм (окно)
     local mainFrame = Instance.new("Frame")
@@ -149,6 +162,13 @@ function RGLib:NewWindow(title, options)
         TweenObject(closeButton, {BackgroundTransparency = 0.8}, 0.2)
     end)
     closeButton.MouseButton1Click:Connect(function()
+        -- Удаляем GUI из списка активных при закрытии
+        for i, gui in pairs(ActiveGUIs) do
+            if gui == screenGui then
+                table.remove(ActiveGUIs, i)
+                break
+            end
+        end
         TweenObject(mainFrame, {BackgroundTransparency = 1}, 0.3)
         TweenObject(screenGui, {Enabled = false}, 0.3)
         task.wait(0.3)
@@ -200,6 +220,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание вкладок
     function RGLib:CreateTab(name, icon)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local tabContainer = Instance.new("Frame")
         tabContainer.Name = name .. "Tab"
         tabContainer.Size = UDim2.new(1, 0, 1, 0)
@@ -284,6 +309,11 @@ function RGLib:NewWindow(title, options)
     
     -- Выбор вкладки
     function RGLib:SelectTab(tabData)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return
+        end
+        
         for _, tab in pairs(tabs) do
             tab.Container.Visible = false
             tab.Button.TextColor3 = DefaultTheme.SecondaryTextColor
@@ -298,6 +328,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание кнопки
     function RGLib:CreateButton(tab, text, callback)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local button = Instance.new("TextButton")
         button.Name = "Button_" .. text
         button.Size = UDim2.new(0.95, 0, 0, 40)
@@ -334,6 +369,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание поля ввода
     function RGLib:CreateInput(tab, placeholder, callback)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local container = Instance.new("Frame")
         container.Name = "InputContainer"
         container.Size = UDim2.new(0.95, 0, 0, 45)
@@ -374,6 +414,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание чекбокса
     function RGLib:CreateCheckbox(tab, text, default, callback)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local container = Instance.new("Frame")
         container.Name = "CheckboxContainer"
         container.Size = UDim2.new(0.95, 0, 0, 35)
@@ -425,6 +470,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание слайдера
     function RGLib:CreateSlider(tab, text, min, max, default, callback)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         min = min or 0
         max = max or 100
         default = default or 50
@@ -531,6 +581,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание выпадающего списка
     function RGLib:CreateDropdown(tab, text, options, default, callback)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local container = Instance.new("Frame")
         container.Name = "DropdownContainer"
         container.Size = UDim2.new(0.95, 0, 0, 45)
@@ -665,6 +720,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание разделителя
     function RGLib:CreateSeparator(tab, text)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return nil
+        end
+        
         local container = Instance.new("Frame")
         container.Name = "SeparatorContainer"
         container.Size = UDim2.new(0.95, 0, 0, 30)
@@ -713,6 +773,11 @@ function RGLib:NewWindow(title, options)
     
     -- Создание уведомления
     function RGLib:Notify(message, duration, type)
+        if not IsLibraryActive then
+            error("Библиотека RGLib была выгружена!")
+            return
+        end
+        
         duration = duration or 3
         type = type or "info"
         
@@ -804,6 +869,13 @@ function RGLib:NewWindow(title, options)
         UpdateCanvas = RGLib.UpdateCanvas,
         
         Destroy = function()
+            -- Удаляем GUI из списка активных
+            for i, gui in pairs(ActiveGUIs) do
+                if gui == screenGui then
+                    table.remove(ActiveGUIs, i)
+                    break
+                end
+            end
             screenGui:Destroy()
         end,
         
@@ -825,11 +897,19 @@ end
 
 -- Глобальная функция уведомления
 function RGLib:Notify(message, duration, type)
+    if not IsLibraryActive then
+        error("Библиотека RGLib была выгружена!")
+        return
+    end
+    
     -- Если нет активного GUI, создаём временный
     local tempGui = Instance.new("ScreenGui")
     tempGui.Name = "RGNotify"
     tempGui.Parent = LocalPlayer.PlayerGui
     tempGui.ResetOnSpawn = false
+    
+    -- Добавляем в список активных
+    table.insert(ActiveGUIs, tempGui)
     
     -- Создаём уведомление
     local notification = Instance.new("Frame")
@@ -895,6 +975,13 @@ function RGLib:Notify(message, duration, type)
     closeBtn.MouseButton1Click:Connect(function()
         TweenObject(notification, {Position = UDim2.new(1, -320, 0, -100)}, 0.3)
         task.wait(0.3)
+        -- Удаляем из списка активных
+        for i, gui in pairs(ActiveGUIs) do
+            if gui == tempGui then
+                table.remove(ActiveGUIs, i)
+                break
+            end
+        end
         tempGui:Destroy()
     end)
     
@@ -905,7 +992,69 @@ function RGLib:Notify(message, duration, type)
     task.wait(duration or 3)
     TweenObject(notification, {Position = UDim2.new(1, -320, 0, -100)}, 0.3)
     task.wait(0.3)
+    -- Удаляем из списка активных
+    for i, gui in pairs(ActiveGUIs) do
+        if gui == tempGui then
+            table.remove(ActiveGUIs, i)
+            break
+        end
+    end
     tempGui:Destroy()
 end
 
+-- Функция полной выгрузки библиотеки
+function RGLib:KillMain()
+    if not IsLibraryActive then
+        return
+    end
+    
+    print("[RGLib] Начинается выгрузка библиотеки...")
+    
+    -- Уничтожаем все активные GUI
+    for i = #ActiveGUIs, 1, -1 do
+        local gui = ActiveGUIs[i]
+        if gui and gui.Parent then
+            -- Плавное исчезновение
+            for _, child in pairs(gui:GetDescendants()) do
+                if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("TextLabel") then
+                    TweenObject(child, {BackgroundTransparency = 1}, 0.3)
+                end
+            end
+            task.wait(0.2)
+            gui:Destroy()
+        end
+        table.remove(ActiveGUIs, i)
+    end
+    
+    -- Очищаем хранилище
+    ActiveGUIs = {}
+    
+    -- Деактивируем библиотеку
+    IsLibraryActive = false
+    
+    -- Очищаем все функции библиотеки
+    local function ClearTable(tbl)
+        for key, value in pairs(tbl) do
+            if type(value) == "function" then
+                tbl[key] = function() 
+                    error("Библиотека RGLib была выгружена! Используйте loadstring для перезагрузки.")
+                end
+            elseif type(value) == "table" then
+                ClearTable(value)
+            end
+        end
+    end
+    
+    ClearTable(RGLib)
+    
+    -- Очищаем глобальные переменные
+    if _G.RGLib then
+        _G.RGLib = nil
+    end
+    
+    print("[RGLib] Библиотека полностью выгружена!")
+    print("[RGLib] Все GUI элементы уничтожены.")
+end
+
+-- Возвращаем библиотеку
 return RGLib
