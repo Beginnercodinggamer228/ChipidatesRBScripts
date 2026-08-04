@@ -1,6 +1,5 @@
--- RGLib (Roblox GUI Library) v2.0
--- Улучшенная и оптимизированная библиотека для создания GUI
--- Использует rbxhumb для ресурсов
+-- RGLib (Roblox GUI Library) v2.1
+-- Исправленная версия с корректными UDim2
 
 local RGLib = {}
 local Players = game:GetService("Players")
@@ -13,7 +12,7 @@ local HttpService = game:GetService("HttpService")
 
 -- ===================== КОНФИГУРАЦИЯ =====================
 local Config = {
-    UseRBXHumb = true, -- Использовать rbxhumb вместо rbxassets
+    UseRBXHumb = true,
     Animations = true,
     AnimationSpeed = 0.25,
     SmoothScrolling = true,
@@ -26,32 +25,26 @@ local Connections = {}
 
 -- ===================== ТЕМА =====================
 local Theme = {
-    -- Основные цвета
     Background = Color3.fromRGB(18, 18, 22),
     BackgroundSecondary = Color3.fromRGB(28, 28, 34),
     BackgroundTertiary = Color3.fromRGB(38, 38, 46),
     
-    -- Акцентные цвета
     Accent = Color3.fromRGB(100, 180, 255),
     AccentDark = Color3.fromRGB(70, 140, 220),
     AccentLight = Color3.fromRGB(140, 210, 255),
     
-    -- Текст
     TextPrimary = Color3.fromRGB(255, 255, 255),
     TextSecondary = Color3.fromRGB(180, 190, 200),
     TextMuted = Color3.fromRGB(120, 130, 140),
     
-    -- Статусы
     Success = Color3.fromRGB(80, 220, 100),
     Warning = Color3.fromRGB(255, 200, 60),
     Error = Color3.fromRGB(255, 80, 80),
     Info = Color3.fromRGB(80, 180, 255),
     
-    -- Градиенты
     GradientStart = Color3.fromRGB(30, 30, 40),
     GradientEnd = Color3.fromRGB(20, 20, 28),
     
-    -- Прозрачность
     Transparency = {
         Main = 0.92,
         Secondary = 0.85,
@@ -61,12 +54,10 @@ local Theme = {
         Disabled = 0.95,
     },
     
-    -- Шрифты
     Font = Enum.Font.Gotham,
     FontBold = Enum.Font.GothamBold,
     FontSemiBold = Enum.Font.GothamSemibold,
     
-    -- Размеры
     FontSize = {
         Small = 12,
         Medium = 14,
@@ -75,26 +66,16 @@ local Theme = {
         Header = 24,
     },
     
-    -- Скругления
     CornerRadius = {
         Small = UDim.new(0, 4),
         Medium = UDim.new(0, 8),
         Large = UDim.new(0, 12),
         Circle = UDim.new(1, 0),
     },
-    
-    -- Тени
-    Shadow = {
-        Color = Color3.fromRGB(0, 0, 0),
-        Transparency = 0.6,
-        Size = UDim.new(1, 12),
-        Position = UDim2.new(0, -6, 0, -6),
-    },
 }
 
 -- ===================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====================
 
--- Создание скругления
 local function CreateCorner(instance, radius)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = radius or Theme.CornerRadius.Medium
@@ -102,7 +83,6 @@ local function CreateCorner(instance, radius)
     return corner
 end
 
--- Создание обводки
 local function CreateStroke(instance, color, thickness, transparency)
     local stroke = Instance.new("UIStroke")
     stroke.Color = color or Theme.BackgroundTertiary
@@ -112,7 +92,6 @@ local function CreateStroke(instance, color, thickness, transparency)
     return stroke
 end
 
--- Создание градиента
 local function CreateGradient(instance, color1, color2, direction)
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
@@ -124,16 +103,16 @@ local function CreateGradient(instance, color1, color2, direction)
     return gradient
 end
 
--- Создание тени
-local function CreateShadow(parent, size, position)
+-- ===================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ТЕНИ =====================
+local function CreateShadow(parent)
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
-    shadow.Size = size or Theme.Shadow.Size
-    shadow.Position = position or Theme.Shadow.Position
+    shadow.Size = UDim2.new(1, 12, 1, 12) -- Исправлено: UDim2 вместо UDim
+    shadow.Position = UDim2.new(0, -6, 0, -6)
     shadow.BackgroundTransparency = 1
     shadow.Image = "rbxhumb://shadow.png"
-    shadow.ImageColor3 = Theme.Shadow.Color
-    shadow.ImageTransparency = Theme.Shadow.Transparency
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.6
     shadow.ScaleType = Enum.ScaleType.Slice
     shadow.SliceCenter = Rect.new(10, 10, 10, 10)
     shadow.Parent = parent
@@ -141,7 +120,6 @@ local function CreateShadow(parent, size, position)
     return shadow
 end
 
--- Анимация объекта
 local function TweenObject(object, properties, duration, style, direction)
     if not Config.Animations then
         for prop, value in pairs(properties) do
@@ -160,14 +138,13 @@ local function TweenObject(object, properties, duration, style, direction)
     return tween
 end
 
--- Безопасное подключение событий
 local function ConnectSafe(event, callback)
     local connection = event:Connect(callback)
     table.insert(Connections, connection)
     return connection
 end
 
--- Создание иконки из rbxhumb
+-- ===================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ИКОНОК =====================
 local function CreateIcon(parent, iconName, size, color)
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
@@ -189,7 +166,6 @@ function RGLib:NewWindow(title, options)
     
     options = options or {}
     
-    -- Создание ScreenGui
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = options.Name or "RGLibGUI"
     screenGui.Parent = options.Parent or LocalPlayer.PlayerGui
@@ -198,7 +174,6 @@ function RGLib:NewWindow(title, options)
     
     table.insert(ActiveGUIs, screenGui)
     
-    -- Главный фрейм
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = options.Size or UDim2.new(0, 550, 0, 450)
@@ -211,16 +186,11 @@ function RGLib:NewWindow(title, options)
     mainFrame.Draggable = true
     mainFrame.ClipsDescendants = true
     
-    -- Тень
+    -- Тень (исправлено)
     local shadow = CreateShadow(mainFrame)
     
-    -- Основное скругление
     local mainCorner = CreateCorner(mainFrame, Theme.CornerRadius.Large)
-    
-    -- Обводка
     local mainStroke = CreateStroke(mainFrame, Theme.BackgroundTertiary, 1, 0.3)
-    
-    -- Градиент фона
     local mainGradient = CreateGradient(mainFrame, Theme.GradientStart, Theme.GradientEnd, 135)
     
     -- ===================== ЗАГОЛОВОК =====================
@@ -233,12 +203,10 @@ function RGLib:NewWindow(title, options)
     titleBar.Parent = mainFrame
     
     local titleBarCorner = CreateCorner(titleBar, Theme.CornerRadius.Large)
-    -- Делаем только верхние углы скругленными
     local titleBarCorner2 = Instance.new("UICorner")
     titleBarCorner2.CornerRadius = Theme.CornerRadius.Medium
     titleBarCorner2.Parent = titleBar
     
-    -- Разделитель под заголовком
     local titleSeparator = Instance.new("Frame")
     titleSeparator.Name = "Separator"
     titleSeparator.Size = UDim2.new(1, -20, 0, 1)
@@ -248,14 +216,12 @@ function RGLib:NewWindow(title, options)
     titleSeparator.BorderSizePixel = 0
     titleSeparator.Parent = titleBar
     
-    -- Иконка заголовка
     if options.Icon then
         local titleIcon = CreateIcon(titleBar, options.Icon, UDim2.new(0, 24, 0, 24), Theme.Accent)
         titleIcon.Position = UDim2.new(0, 15, 0.5, -12)
         titleIcon.ZIndex = 2
     end
     
-    -- Заголовок
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Size = UDim2.new(1, -110, 1, 0)
@@ -270,9 +236,7 @@ function RGLib:NewWindow(title, options)
     
     -- ===================== КНОПКИ УПРАВЛЕНИЯ =====================
     local buttonSize = UDim2.new(0, 30, 0, 30)
-    local buttonPos = UDim2.new(1, -10, 0.5, -15)
     
-    -- Кнопка закрытия
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Size = buttonSize
@@ -300,7 +264,6 @@ function RGLib:NewWindow(title, options)
     end)
     
     ConnectSafe(closeButton.MouseButton1Click, function()
-        -- Плавное закрытие
         TweenObject(mainFrame, {BackgroundTransparency = 1}, 0.3)
         TweenObject(mainFrame, {Size = UDim2.new(0, 0, 0, 0)}, 0.3)
         task.wait(0.35)
@@ -314,7 +277,6 @@ function RGLib:NewWindow(title, options)
         end
     end)
     
-    -- Кнопка минимизации
     local minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Size = buttonSize
@@ -389,7 +351,6 @@ function RGLib:NewWindow(title, options)
     -- ===================== СИСТЕМА ВКЛАДОК =====================
     local tabs = {}
     local currentTab = nil
-    local tabButtons = {}
     
     function RGLib:CreateTab(name, icon)
         if not IsLibraryActive then
@@ -397,7 +358,6 @@ function RGLib:NewWindow(title, options)
             return nil
         end
         
-        -- Контейнер вкладки
         local tabContainer = Instance.new("Frame")
         tabContainer.Name = name .. "Tab"
         tabContainer.Size = UDim2.new(1, 0, 1, 0)
@@ -405,7 +365,6 @@ function RGLib:NewWindow(title, options)
         tabContainer.Parent = contentContainer
         tabContainer.Visible = false
         
-        -- Скролл для вкладки
         local tabScroll = Instance.new("ScrollingFrame")
         tabScroll.Name = "ScrollFrame"
         tabScroll.Size = UDim2.new(1, 0, 1, -5)
@@ -418,7 +377,6 @@ function RGLib:NewWindow(title, options)
         tabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
         tabScroll.Parent = tabContainer
         
-        -- Лейаут для элементов
         local tabLayout = Instance.new("UIListLayout")
         tabLayout.Name = "Layout"
         tabLayout.Padding = UDim.new(0, 8)
@@ -437,7 +395,6 @@ function RGLib:NewWindow(title, options)
         
         table.insert(tabs, tabData)
         
-        -- Кнопка вкладки
         local tabButton = Instance.new("TextButton")
         tabButton.Name = "Tab_" .. name
         tabButton.Size = UDim2.new(0, 0, 1, -8)
@@ -451,7 +408,6 @@ function RGLib:NewWindow(title, options)
         tabButton.Parent = tabScroll
         tabButton.AutoButtonColor = false
         
-        -- Индикатор активной вкладки
         local tabIndicator = Instance.new("Frame")
         tabIndicator.Name = "Indicator"
         tabIndicator.Size = UDim2.new(0.8, 0, 0, 3)
@@ -463,7 +419,6 @@ function RGLib:NewWindow(title, options)
         
         local indicatorCorner = CreateCorner(tabIndicator, Theme.CornerRadius.Small)
         
-        -- Ховер эффект
         ConnectSafe(tabButton.MouseEnter, function()
             if currentTab ~= tabData then
                 TweenObject(tabButton, {TextColor3 = Theme.TextSecondary}, 0.2)
@@ -483,7 +438,6 @@ function RGLib:NewWindow(title, options)
         tabData.Button = tabButton
         tabData.Indicator = tabIndicator
         
-        -- Обновляем размер кнопки
         local function UpdateButtonSize()
             local textSize = tabButton.TextBounds.X + 30
             tabButton.Size = UDim2.new(0, math.max(textSize, 60), 1, -8)
@@ -491,7 +445,6 @@ function RGLib:NewWindow(title, options)
         UpdateButtonSize()
         tabButton:GetPropertyChangedSignal("Text"):Connect(UpdateButtonSize)
         
-        -- Обновляем CanvasSize
         local function UpdateTabScroll()
             local totalWidth = 0
             for _, child in pairs(tabScroll:GetChildren()) do
@@ -506,7 +459,6 @@ function RGLib:NewWindow(title, options)
         task.wait()
         UpdateTabScroll()
         
-        -- Если это первая вкладка, делаем её активной
         if #tabs == 1 then
             RGLib:SelectTab(tabData)
         end
@@ -534,7 +486,6 @@ function RGLib:NewWindow(title, options)
     
     -- ===================== СОЗДАНИЕ ЭЛЕМЕНТОВ =====================
     
-    -- Создание карточки для элементов
     local function CreateCard(parent, size)
         local card = Instance.new("Frame")
         card.Name = "Card"
@@ -550,7 +501,6 @@ function RGLib:NewWindow(title, options)
         return card
     end
     
-    -- Создание кнопки
     function RGLib:CreateButton(tab, text, callback, icon)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -576,7 +526,6 @@ function RGLib:NewWindow(title, options)
         local buttonCorner = CreateCorner(button, Theme.CornerRadius.Medium)
         local buttonStroke = CreateStroke(button, Theme.Accent, 1, 0.3)
         
-        -- Иконка на кнопке
         if icon then
             local btnIcon = CreateIcon(button, icon, UDim2.new(0, 18, 0, 18), Theme.TextPrimary)
             btnIcon.Position = UDim2.new(0, 15, 0.5, -9)
@@ -584,7 +533,6 @@ function RGLib:NewWindow(title, options)
             button.Text = "  " .. text
         end
         
-        -- Эффекты наведения
         ConnectSafe(button.MouseEnter, function()
             TweenObject(button, {BackgroundTransparency = 0.4}, 0.2)
             TweenObject(buttonStroke, {Transparency = 0.1}, 0.2)
@@ -605,7 +553,6 @@ function RGLib:NewWindow(title, options)
                 end
             end
             
-            -- Анимация нажатия
             TweenObject(button, {BackgroundTransparency = 0.6}, 0.1)
             TweenObject(button, {Size = UDim2.new(1, -24, 1, -12)}, 0.1)
             task.wait(0.1)
@@ -618,7 +565,6 @@ function RGLib:NewWindow(title, options)
         return button
     end
     
-    -- Создание поля ввода
     function RGLib:CreateInput(tab, placeholder, callback, multiline)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -646,14 +592,12 @@ function RGLib:NewWindow(title, options)
         local inputCorner = CreateCorner(input, Theme.CornerRadius.Medium)
         local inputStroke = CreateStroke(input, Theme.BackgroundTertiary, 1, 0.3)
         
-        -- Иконка ввода
         local inputIcon = CreateIcon(input, "search", UDim2.new(0, 16, 0, 16), Theme.TextMuted)
         inputIcon.Position = UDim2.new(0, 10, 0.5, -8)
         inputIcon.ZIndex = 2
         input.PlaceholderText = "  " .. (placeholder or "Введите текст...")
         input.TextXAlignment = Enum.TextXAlignment.Left
         
-        -- Фокус
         ConnectSafe(input.Focused, function()
             TweenObject(input, {BackgroundTransparency = 0.4}, 0.2)
             TweenObject(inputStroke, {Color = Theme.Accent, Transparency = 0.1}, 0.2)
@@ -672,7 +616,6 @@ function RGLib:NewWindow(title, options)
         return input
     end
     
-    -- Создание чекбокса
     function RGLib:CreateCheckbox(tab, text, default, callback, description)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -705,7 +648,6 @@ function RGLib:NewWindow(title, options)
         local checkCorner = CreateCorner(checkbox, Theme.CornerRadius.Small)
         local checkStroke = CreateStroke(checkbox, default and Theme.Accent or Theme.BackgroundTertiary, 2, default and 0.3 or 0.5)
         
-        -- Текст
         local label = Instance.new("TextLabel")
         label.Name = "Label"
         label.Size = UDim2.new(1, -35, 0, description and 20 or 30)
@@ -718,7 +660,6 @@ function RGLib:NewWindow(title, options)
         label.Font = Theme.FontSemiBold
         label.Parent = container
         
-        -- Описание
         if description then
             local desc = Instance.new("TextLabel")
             desc.Name = "Description"
@@ -748,7 +689,6 @@ function RGLib:NewWindow(title, options)
             }, 0.2)
             if callback then pcall(callback, checked) end
             
-            -- Анимация
             TweenObject(checkbox, {Size = UDim2.new(0, 30, 0, 30)}, 0.1)
             task.wait(0.1)
             TweenObject(checkbox, {Size = UDim2.new(0, 26, 0, 26)}, 0.1)
@@ -757,7 +697,6 @@ function RGLib:NewWindow(title, options)
         ConnectSafe(checkbox.MouseButton1Click, ToggleCheckbox)
         ConnectSafe(label.MouseButton1Click, ToggleCheckbox)
         
-        -- Ховер эффект
         ConnectSafe(checkbox.MouseEnter, function()
             TweenObject(checkbox, {BackgroundTransparency = checked and 0.15 or 0.4}, 0.2)
         end)
@@ -784,7 +723,6 @@ function RGLib:NewWindow(title, options)
         
         local card = CreateCard(tab.Scroll, UDim2.new(0.95, 0, 0, 65))
         
-        -- Заголовок
         local label = Instance.new("TextLabel")
         label.Name = "Label"
         label.Size = UDim2.new(0.7, 0, 0, 22)
@@ -797,7 +735,6 @@ function RGLib:NewWindow(title, options)
         label.Font = Theme.FontSemiBold
         label.Parent = card
         
-        -- Значение
         local valueLabel = Instance.new("TextLabel")
         valueLabel.Name = "ValueLabel"
         valueLabel.Size = UDim2.new(0.3, -20, 0, 22)
@@ -812,7 +749,6 @@ function RGLib:NewWindow(title, options)
         
         local valCorner = CreateCorner(valueLabel, Theme.CornerRadius.Small)
         
-        -- Трек
         local sliderTrack = Instance.new("Frame")
         sliderTrack.Name = "Track"
         sliderTrack.Size = UDim2.new(1, -30, 0, 6)
@@ -824,7 +760,6 @@ function RGLib:NewWindow(title, options)
         
         local trackCorner = CreateCorner(sliderTrack, Theme.CornerRadius.Circle)
         
-        -- Заполнение
         local sliderFill = Instance.new("Frame")
         sliderFill.Name = "Fill"
         sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
@@ -835,7 +770,6 @@ function RGLib:NewWindow(title, options)
         
         local fillCorner = CreateCorner(sliderFill, Theme.CornerRadius.Circle)
         
-        -- Ползунок
         local sliderButton = Instance.new("TextButton")
         sliderButton.Name = "SliderButton"
         sliderButton.Size = UDim2.new(0, 18, 0, 18)
@@ -849,7 +783,6 @@ function RGLib:NewWindow(title, options)
         local buttonCorner = CreateCorner(sliderButton, Theme.CornerRadius.Circle)
         local buttonStroke = CreateStroke(sliderButton, Theme.AccentLight, 2, 0.2)
         
-        -- Тень ползунка
         local buttonShadow = Instance.new("Frame")
         buttonShadow.Name = "Shadow"
         buttonShadow.Size = UDim2.new(1, 6, 1, 6)
@@ -877,6 +810,7 @@ function RGLib:NewWindow(title, options)
         local function GetSliderValue(mouseX)
             local absX = sliderTrack.AbsolutePosition.X
             local width = sliderTrack.AbsoluteSize.X
+            if width == 0 then return value end
             local percent = math.clamp((mouseX - absX) / width, 0, 1)
             return min + (max - min) * percent
         end
@@ -907,13 +841,11 @@ function RGLib:NewWindow(title, options)
             end
         end)
         
-        -- Клик по треку
         ConnectSafe(sliderTrack.MouseButton1Click, function()
             local mouseX = Mouse.X
             UpdateSlider(GetSliderValue(mouseX))
         end)
         
-        -- Движение мыши
         ConnectSafe(Mouse.Move, function()
             if dragging then
                 UpdateSlider(GetSliderValue(Mouse.X))
@@ -927,7 +859,6 @@ function RGLib:NewWindow(title, options)
         return sliderButton
     end
     
-    -- Создание выпадающего списка
     function RGLib:CreateDropdown(tab, text, options, default, callback)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -977,7 +908,6 @@ function RGLib:NewWindow(title, options)
         dropdownArrow.Font = Theme.Font
         dropdownArrow.Parent = dropdown
         
-        -- Список
         local dropdownList = Instance.new("ScrollingFrame")
         dropdownList.Name = "List"
         dropdownList.Size = UDim2.new(1, 0, 0, 0)
@@ -1070,7 +1000,6 @@ function RGLib:NewWindow(title, options)
             end
         end)
         
-        -- Закрытие при клике вне
         ConnectSafe(UserInputService.InputBegin, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 and isOpen then
                 local mousePos = Vector2.new(Mouse.X, Mouse.Y)
@@ -1091,7 +1020,6 @@ function RGLib:NewWindow(title, options)
         return dropdown
     end
     
-    -- Создание разделителя
     function RGLib:CreateSeparator(tab, text)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -1183,7 +1111,6 @@ function RGLib:NewWindow(title, options)
         local notCorner = CreateCorner(notification, Theme.CornerRadius.Medium)
         local notStroke = CreateStroke(notification, Theme.BackgroundTertiary, 1, 0.5)
         
-        -- Индикатор
         local indicator = Instance.new("Frame")
         indicator.Name = "Indicator"
         indicator.Size = UDim2.new(0, 4, 1, 0)
@@ -1194,7 +1121,6 @@ function RGLib:NewWindow(title, options)
         
         local indCorner = CreateCorner(indicator, Theme.CornerRadius.Small)
         
-        -- Иконка
         local icons = {
             info = "info",
             success = "check",
@@ -1206,7 +1132,6 @@ function RGLib:NewWindow(title, options)
         icon.Position = UDim2.new(0, 15, 0.5, -10)
         icon.ZIndex = 2
         
-        -- Текст
         local text = Instance.new("TextLabel")
         text.Name = "Text"
         text.Size = UDim2.new(1, -55, 1, 0)
@@ -1220,7 +1145,6 @@ function RGLib:NewWindow(title, options)
         text.Font = Theme.Font
         text.Parent = notification
         
-        -- Кнопка закрытия
         local closeBtn = Instance.new("TextButton")
         closeBtn.Name = "Close"
         closeBtn.Size = UDim2.new(0, 24, 0, 24)
@@ -1253,7 +1177,6 @@ function RGLib:NewWindow(title, options)
             tempGui:Destroy()
         end)
         
-        -- Анимация появления
         notification.Position = UDim2.new(1, -370, 0, -100)
         TweenObject(notification, {Position = UDim2.new(1, -370, 0, 20)}, 0.4)
         
@@ -1271,7 +1194,6 @@ function RGLib:NewWindow(title, options)
     
     -- ===================== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ =====================
     
-    -- Показать/скрыть окно
     function RGLib:ToggleVisibility(visible)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -1280,12 +1202,10 @@ function RGLib:NewWindow(title, options)
         mainFrame.Visible = (visible ~= nil) and visible or not mainFrame.Visible
     end
     
-    -- Показать окно
     function RGLib:Show()
         RGLib:ToggleVisibility(true)
     end
     
-    -- Скрыть окно
     function RGLib:Hide()
         RGLib:ToggleVisibility(false)
     end
@@ -1298,7 +1218,6 @@ function RGLib:NewWindow(title, options)
         Elements = {},
         Tabs = tabs,
         
-        -- Основные функции
         CreateTab = RGLib.CreateTab,
         CreateButton = RGLib.CreateButton,
         CreateInput = RGLib.CreateInput,
@@ -1310,7 +1229,6 @@ function RGLib:NewWindow(title, options)
         SelectTab = RGLib.SelectTab,
         UpdateCanvas = RGLib.UpdateCanvas,
         
-        -- Управление
         ToggleVisibility = RGLib.ToggleVisibility,
         Show = RGLib.Show,
         Hide = RGLib.Hide,
@@ -1352,7 +1270,6 @@ end
 
 -- ===================== ГЛОБАЛЬНЫЕ ФУНКЦИИ =====================
 
--- Глобальное уведомление
 function RGLib:Notify(message, duration, type)
     if not IsLibraryActive then
         error("Библиотека RGLib была выгружена!")
@@ -1387,7 +1304,6 @@ function RGLib:Notify(message, duration, type)
     local notCorner = CreateCorner(notification, Theme.CornerRadius.Medium)
     local notStroke = CreateStroke(notification, Theme.BackgroundTertiary, 1, 0.5)
     
-    -- Индикатор
     local indicator = Instance.new("Frame")
     indicator.Name = "Indicator"
     indicator.Size = UDim2.new(0, 4, 1, 0)
@@ -1398,7 +1314,6 @@ function RGLib:Notify(message, duration, type)
     
     local indCorner = CreateCorner(indicator, Theme.CornerRadius.Small)
     
-    -- Иконка
     local icons = {
         info = "info",
         success = "check",
@@ -1410,7 +1325,6 @@ function RGLib:Notify(message, duration, type)
     icon.Position = UDim2.new(0, 15, 0.5, -10)
     icon.ZIndex = 2
     
-    -- Текст
     local text = Instance.new("TextLabel")
     text.Name = "Text"
     text.Size = UDim2.new(1, -55, 1, 0)
@@ -1479,7 +1393,6 @@ function RGLib:KillMain()
     
     print("[RGLib] Начинается выгрузка библиотеки...")
     
-    -- Отключаем все соединения
     for _, connection in pairs(Connections) do
         if connection and connection.Disconnect then
             pcall(connection.Disconnect, connection)
@@ -1487,11 +1400,9 @@ function RGLib:KillMain()
     end
     Connections = {}
     
-    -- Уничтожаем все GUI
     for i = #ActiveGUIs, 1, -1 do
         local gui = ActiveGUIs[i]
         if gui and gui.Parent then
-            -- Плавное исчезновение
             for _, child in pairs(gui:GetDescendants()) do
                 if child:IsA("Frame") or child:IsA("TextButton") or 
                    child:IsA("TextLabel") or child:IsA("ImageLabel") then
@@ -1512,7 +1423,6 @@ function RGLib:KillMain()
     ActiveGUIs = {}
     IsLibraryActive = false
     
-    -- Заменяем все функции
     local function DisableTable(tbl)
         for key, value in pairs(tbl) do
             if type(value) == "function" then
