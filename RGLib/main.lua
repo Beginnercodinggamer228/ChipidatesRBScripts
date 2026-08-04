@@ -1,5 +1,5 @@
--- RGLib (Roblox GUI Library) v2.1
--- Исправленная версия с корректными UDim2
+-- RGLib (Roblox GUI Library) v2.2
+-- Исправленная версия с корректными событиями
 
 local RGLib = {}
 local Players = game:GetService("Players")
@@ -103,11 +103,10 @@ local function CreateGradient(instance, color1, color2, direction)
     return gradient
 end
 
--- ===================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ТЕНИ =====================
 local function CreateShadow(parent)
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 12, 1, 12) -- Исправлено: UDim2 вместо UDim
+    shadow.Size = UDim2.new(1, 12, 1, 12)
     shadow.Position = UDim2.new(0, -6, 0, -6)
     shadow.BackgroundTransparency = 1
     shadow.Image = "rbxhumb://shadow.png"
@@ -144,7 +143,6 @@ local function ConnectSafe(event, callback)
     return connection
 end
 
--- ===================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ИКОНОК =====================
 local function CreateIcon(parent, iconName, size, color)
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
@@ -186,9 +184,7 @@ function RGLib:NewWindow(title, options)
     mainFrame.Draggable = true
     mainFrame.ClipsDescendants = true
     
-    -- Тень (исправлено)
     local shadow = CreateShadow(mainFrame)
-    
     local mainCorner = CreateCorner(mainFrame, Theme.CornerRadius.Large)
     local mainStroke = CreateStroke(mainFrame, Theme.BackgroundTertiary, 1, 0.3)
     local mainGradient = CreateGradient(mainFrame, Theme.GradientStart, Theme.GradientEnd, 135)
@@ -616,6 +612,7 @@ function RGLib:NewWindow(title, options)
         return input
     end
     
+    -- ===================== ИСПРАВЛЕННЫЙ ЧЕКБОКС =====================
     function RGLib:CreateCheckbox(tab, text, default, callback, description)
         if not IsLibraryActive then
             error("Библиотека RGLib была выгружена!")
@@ -624,11 +621,14 @@ function RGLib:NewWindow(title, options)
         
         local card = CreateCard(tab.Scroll, UDim2.new(0.95, 0, 0, description and 65 or 45))
         
-        local container = Instance.new("Frame")
+        -- Создаем кнопку-контейнер для всей строки
+        local container = Instance.new("TextButton")
         container.Name = "Container"
         container.Size = UDim2.new(1, -20, 1, -8)
         container.Position = UDim2.new(0, 10, 0, 4)
         container.BackgroundTransparency = 1
+        container.Text = ""
+        container.AutoButtonColor = false
         container.Parent = card
         
         local checkbox = Instance.new("TextButton")
@@ -694,9 +694,18 @@ function RGLib:NewWindow(title, options)
             TweenObject(checkbox, {Size = UDim2.new(0, 26, 0, 26)}, 0.1)
         end
         
-        ConnectSafe(checkbox.MouseButton1Click, ToggleCheckbox)
-        ConnectSafe(label.MouseButton1Click, ToggleCheckbox)
+        -- Клик по контейнеру (включая текст)
+        ConnectSafe(container.MouseButton1Click, ToggleCheckbox)
         
+        -- Ховер эффект для контейнера
+        ConnectSafe(container.MouseEnter, function()
+            TweenObject(container, {BackgroundTransparency = 0.9}, 0.2)
+        end)
+        ConnectSafe(container.MouseLeave, function()
+            TweenObject(container, {BackgroundTransparency = 1}, 0.2)
+        end)
+        
+        -- Ховер эффект для чекбокса
         ConnectSafe(checkbox.MouseEnter, function()
             TweenObject(checkbox, {BackgroundTransparency = checked and 0.15 or 0.4}, 0.2)
         end)
