@@ -10,36 +10,27 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- Приколюха №1: Цвет зависит от игрового времени (или просто меняется циклично)
+-- Конфиг
+local config = {
+	ThemeColor = Color3.fromRGB(0, 200, 255),
+	GlitchEffect = true
+}
+
+-- Получение неон-цвета (упростим)
 local function getNeonColor()
-	-- Берем время суток из Lighting, если оно есть, или используем системное время для эффекта
-	local hour = Lighting:GetPropertyChangedSignal("ClockTime")
 	local time = Lighting.ClockTime or 12
-	-- От 0 до 24 часов -> цикл цветов: Синий (ночь) -> Оранжевый (закат) -> Голубой (день)
 	if time > 6 and time < 12 then
-		return Color3.fromRGB(0, 200, 255) -- День (Неон-голубой)
+		return Color3.fromRGB(0, 200, 255)
 	elseif time >= 12 and time < 18 then
-		return Color3.fromRGB(255, 150, 0) -- Закат (Огонь)
+		return Color3.fromRGB(255, 150, 0)
 	else
-		return Color3.fromRGB(200, 0, 255) -- Ночь (Фиолетовый)
+		return Color3.fromRGB(200, 0, 255)
 	end
 end
 
--- Настройки по умолчанию (динамические)
-local config = {
-	ThemeColor = getNeonColor(),
-	GlitchEffect = true, -- Приколюха №2: Глитч при наведении
-	PulseSpeed = 2
-}
-
--- Создаем главное окно (синглтон)
-local MainFrame
-local ScreenGui
-local Tabs = {}
-local CurrentTab = nil
-
--- Вспомогательная функция для создания Tween
+-- Tween helper
 local function tweenObj(obj, props, time, style)
 	style = style or Enum.EasingStyle.Quad
 	local tween = TweenService:Create(obj, TweenInfo.new(time or 0.2, style, Enum.EasingDirection.Out), props)
@@ -47,11 +38,48 @@ local function tweenObj(obj, props, time, style)
 	return tween
 end
 
--- Функция создания кнопки с "глитчем"
+-- Переменные UI
+local MainFrame, ScreenGui, DragFrame
+local Tabs = {}
+local CurrentTab = nil
+
+-- ====== ФУНКЦИЯ ДЛЯ ПЕРЕТАСКИВАНИЯ ======
+local function makeDraggable(frame)
+	local dragging = false
+	local dragStart, startPos
+	
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+	
+	frame.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+	
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+-- ====== СОЗДАНИЕ КНОПКИ С ГЛИТЧЕМ ======
 local function createGlitchButton(parent, text, callback)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, -10, 0, 30)
-	btn.Position = UDim2.new(0, 5, 0, 5)
+	btn.Position = UDim2.new(0, 5, 0, 5 + (#parent:GetChildren() * 35))
 	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 	btn.BorderSizePixel = 1
 	btn.BorderColor3 = config.ThemeColor
@@ -63,10 +91,10 @@ local function createGlitchButton(parent, text, callback)
 	btn.AutoButtonColor = false
 	btn.ClipsDescendants = true
 
-	-- Приколюха: Эффект "глитч" (смещение текста)
+	-- Глитч-текст (эффект)
 	local glitchText = Instance.new("TextLabel")
 	glitchText.Size = UDim2.new(1, 0, 1, 0)
-	glitchText.Position = UDim2.new(0, 2, 0, 0) -- Слегка смещен
+	glitchText.Position = UDim2.new(0, 2, 0, 0)
 	glitchText.BackgroundTransparency = 1
 	glitchText.Text = text
 	glitchText.TextColor3 = Color3.fromRGB(255, 0, 100)
@@ -76,14 +104,11 @@ local function createGlitchButton(parent, text, callback)
 	glitchText.Parent = btn
 	glitchText.ZIndex = 0
 
-	local hoverTween = nil
-
 	btn.MouseEnter:Connect(function()
 		if config.GlitchEffect then
-			-- Эффект глитча: на долю секунды показываем красное смещение
 			glitchText.TextTransparency = 0.5
+			task.wait(0.05)
 			tweenObj(glitchText, {TextTransparency = 1}, 0.1)
-			-- Дрожание рамки
 			tweenObj(btn, {BorderColor3 = Color3.fromRGB(255, 255, 255)}, 0.1)
 		end
 		tweenObj(btn, {BackgroundColor3 = Color3.fromRGB(50, 50, 70)}, 0.15)
@@ -94,7 +119,6 @@ local function createGlitchButton(parent, text, callback)
 	end)
 
 	btn.MouseButton1Click:Connect(function()
-		-- Эффект нажатия (вдавливание)
 		tweenObj(btn, {Size = UDim2.new(1, -10, 0, 28)}, 0.05)
 		task.wait(0.05)
 		tweenObj(btn, {Size = UDim2.new(1, -10, 0, 30)}, 0.05)
@@ -104,23 +128,22 @@ local function createGlitchButton(parent, text, callback)
 	return btn
 end
 
--- === Публичные методы библиотеки ===
+-- ====== ОСНОВНЫЕ ФУНКЦИИ БИБЛИОТЕКИ ======
 
 function VortexUI:CreateWindow(title)
-	if MainFrame then return end -- Уже создано
+	if MainFrame then 
+		VortexUI:Destroy()
+		task.wait(0.1)
+	end
 
 	ScreenGui = Instance.new("ScreenGui")
 	ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	ScreenGui.Name = "VortexUI"
 	ScreenGui.ResetOnSpawn = false
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-	-- Затемнение (Background)
-	local dim = Instance.new("Frame")
-	dim.Size = UDim2.new(1, 0, 1, 0)
-	dim.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	dim.BackgroundTransparency = 0.5
-	dim.Parent = ScreenGui
-	dim.ZIndex = 0
+	-- Убираем затемнение (чтобы не было чёрного квадрата)
+	-- Вместо этого сделаем фон прозрачным
 
 	-- Главное окно
 	MainFrame = Instance.new("Frame")
@@ -133,15 +156,16 @@ function VortexUI:CreateWindow(title)
 	MainFrame.Parent = ScreenGui
 	MainFrame.ZIndex = 1
 
-	-- Заголовок (с возможностью перетаскивания, но для простоты пропустим)
-	local topBar = Instance.new("Frame")
-	topBar.Size = UDim2.new(1, 0, 0, 30)
-	topBar.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-	topBar.BorderSizePixel = 0
-	topBar.Parent = MainFrame
+	-- Заголовок (для перетаскивания)
+	DragFrame = Instance.new("Frame")
+	DragFrame.Size = UDim2.new(1, 0, 0, 30)
+	DragFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+	DragFrame.BorderSizePixel = 0
+	DragFrame.Parent = MainFrame
+	makeDraggable(DragFrame) -- Активируем перетаскивание
 
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, 0, 1, 0)
+	titleLabel.Size = UDim2.new(1, -30, 1, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = title or "Vortex UI"
 	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -149,9 +173,9 @@ function VortexUI:CreateWindow(title)
 	titleLabel.Font = Enum.Font.GothamBold
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Position = UDim2.new(0, 10, 0, 0)
-	titleLabel.Parent = topBar
+	titleLabel.Parent = DragFrame
 
-	-- Кнопка закрытия (с глитч-эффектом)
+	-- Кнопка закрытия
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Size = UDim2.new(0, 30, 1, 0)
 	closeBtn.Position = UDim2.new(1, -30, 0, 0)
@@ -160,14 +184,13 @@ function VortexUI:CreateWindow(title)
 	closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 	closeBtn.TextSize = 16
 	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.BorderSizePixel = 1
-	closeBtn.BorderColor3 = Color3.fromRGB(100, 0, 0)
-	closeBtn.Parent = topBar
+	closeBtn.BorderSizePixel = 0
+	closeBtn.Parent = DragFrame
 	closeBtn.MouseButton1Click:Connect(function()
 		VortexUI:Destroy()
 	end)
 
-	-- Контейнер для табов (левая панель)
+	-- Контейнер для табов
 	local tabContainer = Instance.new("Frame")
 	tabContainer.Size = UDim2.new(0, 120, 1, -30)
 	tabContainer.Position = UDim2.new(0, 0, 0, 30)
@@ -175,7 +198,7 @@ function VortexUI:CreateWindow(title)
 	tabContainer.BorderSizePixel = 0
 	tabContainer.Parent = MainFrame
 
-	-- Контейнер для содержимого (правая панель)
+	-- Контейнер для содержимого
 	local contentContainer = Instance.new("Frame")
 	contentContainer.Size = UDim2.new(1, -120, 1, -30)
 	contentContainer.Position = UDim2.new(0, 120, 0, 30)
@@ -183,29 +206,30 @@ function VortexUI:CreateWindow(title)
 	contentContainer.BorderSizePixel = 0
 	contentContainer.Parent = MainFrame
 
-	-- Сохраняем ссылки
 	VortexUI._tabContainer = tabContainer
 	VortexUI._contentContainer = contentContainer
 	VortexUI._mainFrame = MainFrame
 
-	-- Пульсация границы (Приколюха №3)
+	-- Обновление цвета
 	task.spawn(function()
 		while MainFrame and MainFrame.Parent do
 			local color = getNeonColor()
 			config.ThemeColor = color
 			tweenObj(MainFrame, {BorderColor3 = color}, 1)
-			task.wait(3) -- Меняем цвет каждые 3 секунды (или можно привязать к времени)
+			task.wait(3)
 		end
 	end)
 
 	return VortexUI
 end
 
+-- ====== СОЗДАНИЕ ТАБА ======
 function VortexUI:CreateTab(name, icon)
 	if not MainFrame then return end
+	
 	local tabBtn = Instance.new("TextButton")
 	tabBtn.Size = UDim2.new(1, -10, 0, 30)
-	tabBtn.Position = UDim2.new(0, 5, 0, #Tabs * 35 + 10)
+	tabBtn.Position = UDim2.new(0, 5, 5 + #Tabs * 35, 0)
 	tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 	tabBtn.BorderSizePixel = 1
 	tabBtn.BorderColor3 = Color3.fromRGB(40, 40, 50)
@@ -223,6 +247,7 @@ function VortexUI:CreateTab(name, icon)
 	tabContent.BackgroundTransparency = 1
 	tabContent.Visible = false
 	tabContent.Parent = VortexUI._contentContainer
+	tabContent.Name = name
 
 	table.insert(Tabs, {
 		Button = tabBtn,
@@ -249,53 +274,65 @@ function VortexUI:CreateTab(name, icon)
 		CurrentTab = {Button = tabBtn, Content = tabContent}
 	end)
 
-	return {
+	-- Возвращаем объект с методами
+	local tabObject = {
 		AddButton = function(self, text, callback)
 			createGlitchButton(tabContent, text, callback)
 		end,
+		
 		AddToggle = function(self, text, default, callback)
 			local toggleFrame = Instance.new("Frame")
 			toggleFrame.Size = UDim2.new(1, -10, 0, 30)
-			toggleFrame.Position = UDim2.new(0, 5, 0, 5 + (#tabContent:GetChildren() * 35))
+			toggleFrame.Position = UDim2.new(0, 5, 5 + (#tabContent:GetChildren() * 35), 0)
 			toggleFrame.BackgroundTransparency = 1
 			toggleFrame.Parent = tabContent
 
 			local label = Instance.new("TextLabel")
-			label.Size = UDim2.new(0.8, 0, 1, 0)
+			label.Size = UDim2.new(0.7, 0, 1, 0)
 			label.BackgroundTransparency = 1
 			label.Text = text
-			label.TextColor3 = Color3.fromRGB(255,255,255)
+			label.TextColor3 = Color3.fromRGB(255, 255, 255)
 			label.TextSize = 14
 			label.TextXAlignment = Enum.TextXAlignment.Left
 			label.Parent = toggleFrame
 
 			local toggleBtn = Instance.new("TextButton")
-			toggleBtn.Size = UDim2.new(0, 50, 0, 20)
-			toggleBtn.Position = UDim2.new(1, -55, 0.5, -10)
+			toggleBtn.Size = UDim2.new(0, 50, 0, 22)
+			toggleBtn.Position = UDim2.new(1, -55, 0.5, -11)
 			toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-			toggleBtn.BorderColor3 = config.ThemeColor
+			toggleBtn.BorderSizePixel = 1
+			toggleBtn.BorderColor3 = Color3.fromRGB(80, 80, 90)
 			toggleBtn.Text = ""
 			toggleBtn.Parent = toggleFrame
+			toggleBtn.AutoButtonColor = false
 
-			local state = default or false
+			-- Индикатор (круг)
 			local indicator = Instance.new("Frame")
 			indicator.Size = UDim2.new(0, 18, 0, 18)
-			indicator.Position = UDim2.new(0, 1, 0.5, -9)
-			indicator.BackgroundColor3 = Color3.fromRGB(255,255,255)
+			indicator.Position = UDim2.new(0, 2, 0.5, -9)
+			indicator.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 			indicator.BorderSizePixel = 0
 			indicator.Parent = toggleBtn
 
+			-- Состояние
+			local state = default or false
+			local isFirstRun = true
+			
 			local function updateToggle()
 				if state then
-					tweenObj(toggleBtn, {BackgroundColor3 = config.ThemeColor}, 0.1)
-					tweenObj(indicator, {Position = UDim2.new(1, -19, 0.5, -9)}, 0.15)
-					indicator.BackgroundColor3 = Color3.fromRGB(255,255,255)
+					tweenObj(toggleBtn, {BackgroundColor3 = config.ThemeColor}, 0.15)
+					tweenObj(indicator, {Position = UDim2.new(1, -20, 0.5, -9)}, 0.15)
+					indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 				else
-					tweenObj(toggleBtn, {BackgroundColor3 = Color3.fromRGB(60, 60, 70)}, 0.1)
-					tweenObj(indicator, {Position = UDim2.new(0, 1, 0.5, -9)}, 0.15)
-					indicator.BackgroundColor3 = Color3.fromRGB(150,150,150)
+					tweenObj(toggleBtn, {BackgroundColor3 = Color3.fromRGB(60, 60, 70)}, 0.15)
+					tweenObj(indicator, {Position = UDim2.new(0, 2, 0.5, -9)}, 0.15)
+					indicator.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 				end
-				if callback then callback(state) end
+				
+				if callback and not isFirstRun then
+					callback(state)
+				end
+				isFirstRun = false
 			end
 
 			toggleBtn.MouseButton1Click:Connect(function()
@@ -303,21 +340,25 @@ function VortexUI:CreateTab(name, icon)
 				updateToggle()
 			end)
 
-			updateToggle() -- Установить начальное состояние
+			-- Устанавливаем начальное состояние
+			updateToggle()
 		end
 	}
+	
+	return tabObject
 end
 
 function VortexUI:Destroy()
-	if ScreenGui then ScreenGui:Destroy() end
+	if ScreenGui then 
+		ScreenGui:Destroy() 
+	end
 	MainFrame = nil
 	ScreenGui = nil
 	Tabs = {}
 	CurrentTab = nil
 end
 
--- Приколюха №4: Если игрок заходит в игру ночью (реальное время), UI будет темнее
--- Обновляем цвет при изменении Lighting
+-- Обновляем цвет при смене времени
 Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
 	config.ThemeColor = getNeonColor()
 	if MainFrame then
