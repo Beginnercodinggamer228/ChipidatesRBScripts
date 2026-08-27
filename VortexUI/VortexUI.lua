@@ -11,7 +11,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 
--- Настройки по умолчанию
+-- Настройки
 local config = {
 	ThemeColor = Color3.fromRGB(0, 200, 255),
 	GlitchEffect = true,
@@ -34,8 +34,10 @@ local CurrentTab = nil
 local IsDragging = false
 local DragStart = nil
 local StartPos = nil
+local IsExpanded = true
+local OriginalSize = nil
 
--- ====== ФУНКЦИЯ ПЕРЕТАСКИВАНИЯ ======
+-- ====== ПЕРЕТАСКИВАНИЕ ======
 local function setupDragging(frame)
 	frame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -55,16 +57,15 @@ local function setupDragging(frame)
 		if IsDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local delta = input.Position - DragStart
 			local viewport = workspace.CurrentCamera.ViewportSize
-			
 			local newX = math.clamp(StartPos.X.Offset + delta.X, -frame.AbsoluteSize.X + 20, viewport.X - 20)
 			local newY = math.clamp(StartPos.Y.Offset + delta.Y, -frame.AbsoluteSize.Y + 20, viewport.Y - 20)
-			
 			frame.Position = UDim2.new(StartPos.X.Scale, newX, StartPos.Y.Scale, newY)
 		end
 	end)
 end
 
--- ====== СОЗДАНИЕ КНОПКИ ======
+-- ====== СОЗДАНИЕ ЭЛЕМЕНТОВ ======
+
 local function createButton(parent, text, callback)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, -10, 0, 30)
@@ -114,7 +115,6 @@ local function createButton(parent, text, callback)
 	return btn
 end
 
--- ====== СОЗДАНИЕ ТОГГЛА ======
 local function createToggle(parent, text, default, callback)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, -10, 0, 30)
@@ -172,7 +172,6 @@ local function createToggle(parent, text, default, callback)
 	return frame
 end
 
--- ====== СОЗДАНИЕ LABEL ======
 local function createLabel(parent, text, options)
 	options = options or {}
 	
@@ -192,33 +191,39 @@ local function createLabel(parent, text, options)
 	label.TextXAlignment = options.Alignment or Enum.TextXAlignment.Left
 	label.Parent = frame
 	
-	-- Гиперссылка (открывает сайт)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundTransparency = 1
+	btn.Text = ""
+	btn.Parent = frame
+	
+	-- Гиперссылка (открывает сайт через браузер)
 	if options.Link then
 		label.TextColor3 = Color3.fromRGB(100, 200, 255)
 		label.Text = text .. " 🔗"
 		
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 1, 0)
-		btn.BackgroundTransparency = 1
-		btn.Text = ""
-		btn.Parent = frame
-		
 		btn.MouseButton1Click:Connect(function()
-			if options.Link:match("^https?://") then
-				-- Пытаемся открыть ссылку
-				local success, err = pcall(function()
-					-- Для Roblox используем setclipboard если ссылка
+			-- Пытаемся открыть ссылку
+			pcall(function()
+				-- Для Roblox используем syn и аналоги
+				if syn and syn.request then
+					syn.request({
+						Url = options.Link,
+						Method = "GET"
+					})
+				elseif game:GetService("GuiService"):GetUrl then
+					-- Альтернативный способ
+					game:GetService("GuiService"):GetUrl(options.Link)
+				else
+					-- Копируем в буфер обмена как запасной вариант
 					setclipboard(options.Link)
 					game:GetService("StarterGui"):SetCore("SendNotification", {
 						Title = "Ссылка скопирована!",
 						Text = "Открой в браузере: " .. options.Link,
 						Duration = 5
 					})
-				end)
-				if not success then
-					print("Не удалось скопировать ссылку")
 				end
-			end
+			end)
 		end)
 		
 		btn.MouseEnter:Connect(function()
@@ -235,14 +240,8 @@ local function createLabel(parent, text, options)
 		label.TextColor3 = Color3.fromRGB(200, 255, 200)
 		label.Text = text .. " 📋"
 		
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 1, 0)
-		btn.BackgroundTransparency = 1
-		btn.Text = ""
-		btn.Parent = frame
-		
 		btn.MouseButton1Click:Connect(function()
-			local success, err = pcall(function()
+			pcall(function()
 				setclipboard(text)
 				game:GetService("StarterGui"):SetCore("SendNotification", {
 					Title = "Скопировано!",
@@ -250,9 +249,6 @@ local function createLabel(parent, text, options)
 					Duration = 2
 				})
 			end)
-			if not success then
-				print("Не удалось скопировать текст")
-			end
 		end)
 		
 		btn.MouseEnter:Connect(function()
@@ -266,12 +262,6 @@ local function createLabel(parent, text, options)
 	
 	-- Действие при нажатии
 	if options.Action then
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 1, 0)
-		btn.BackgroundTransparency = 1
-		btn.Text = ""
-		btn.Parent = frame
-		
 		btn.MouseButton1Click:Connect(options.Action)
 		
 		btn.MouseEnter:Connect(function()
@@ -286,7 +276,6 @@ local function createLabel(parent, text, options)
 	return frame
 end
 
--- ====== СОЗДАНИЕ СЛАЙДЕРА ======
 local function createSlider(parent, text, min, max, default, callback)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, -10, 0, 40)
@@ -371,7 +360,6 @@ local function createSlider(parent, text, min, max, default, callback)
 	return frame
 end
 
--- ====== СОЗДАНИЕ ДРОПДАУНА ======
 local function createDropdown(parent, text, options, default, callback)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, -10, 0, 30)
@@ -420,7 +408,7 @@ local function createDropdown(parent, text, options, default, callback)
 	return frame
 end
 
--- ====== ОСНОВНЫЕ ФУНКЦИИ БИБЛИОТЕКИ ======
+-- ====== ОСНОВНЫЕ ФУНКЦИИ ======
 
 function VortexUI:CreateWindow(title, options)
 	options = options or {}
@@ -440,11 +428,11 @@ function VortexUI:CreateWindow(title, options)
 	ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	ScreenGui.Name = "VortexUI"
 	ScreenGui.ResetOnSpawn = false
-	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	
 	-- Создаём главное окно
 	MainFrame = Instance.new("Frame")
-	MainFrame.Size = options.Size or UDim2.new(0, 500, 0, 400)
+	local size = options.Size or UDim2.new(0, 500, 0, 400)
+	MainFrame.Size = size
 	MainFrame.Position = options.Position or UDim2.new(0.5, -250, 0.5, -200)
 	MainFrame.BackgroundColor3 = options.BackgroundColor or Color3.fromRGB(20, 20, 30)
 	MainFrame.BorderSizePixel = 2
@@ -452,7 +440,9 @@ function VortexUI:CreateWindow(title, options)
 	MainFrame.BackgroundTransparency = options.Transparency or 0
 	MainFrame.ClipsDescendants = true
 	MainFrame.Parent = ScreenGui
-	MainFrame.ZIndex = 1
+	
+	-- Сохраняем оригинальный размер
+	OriginalSize = size
 	
 	-- Заголовок
 	local titleBar = Instance.new("Frame")
@@ -468,7 +458,7 @@ function VortexUI:CreateWindow(title, options)
 	
 	-- Заголовок текст
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -60, 1, 0)
+	titleLabel.Size = UDim2.new(1, -90, 1, 0)
 	titleLabel.Position = UDim2.new(0, 10, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = title or "Vortex UI"
@@ -477,6 +467,32 @@ function VortexUI:CreateWindow(title, options)
 	titleLabel.Font = Enum.Font.GothamBold
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = titleBar
+	
+	-- Кнопка сворачивания (Expand)
+	local expandBtn = Instance.new("TextButton")
+	expandBtn.Size = UDim2.new(0, 30, 1, 0)
+	expandBtn.Position = UDim2.new(1, -60, 0, 0)
+	expandBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	expandBtn.BorderSizePixel = 0
+	expandBtn.Text = "−"
+	expandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	expandBtn.TextSize = 16
+	expandBtn.Font = Enum.Font.GothamBold
+	expandBtn.Parent = titleBar
+	expandBtn.Visible = options.Expandable or false
+	
+	IsExpanded = true
+	
+	expandBtn.MouseButton1Click:Connect(function()
+		IsExpanded = not IsExpanded
+		if IsExpanded then
+			expandBtn.Text = "−"
+			tweenObj(MainFrame, {Size = OriginalSize}, 0.3)
+		else
+			expandBtn.Text = "+"
+			tweenObj(MainFrame, {Size = UDim2.new(OriginalSize.X.Scale, OriginalSize.X.Offset, 0, 30)}, 0.3)
+		end
+	end)
 	
 	-- Кнопка закрытия
 	local closeBtn = Instance.new("TextButton")
@@ -492,34 +508,6 @@ function VortexUI:CreateWindow(title, options)
 	closeBtn.MouseButton1Click:Connect(function()
 		VortexUI:Destroy()
 	end)
-	
-	-- Кнопка сворачивания (Expand/Collapse)
-	if options.Expandable then
-		local expandBtn = Instance.new("TextButton")
-		expandBtn.Size = UDim2.new(0, 30, 1, 0)
-		expandBtn.Position = UDim2.new(1, -60, 0, 0)
-		expandBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-		expandBtn.BorderSizePixel = 0
-		expandBtn.Text = "−"
-		expandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		expandBtn.TextSize = 16
-		expandBtn.Font = Enum.Font.GothamBold
-		expandBtn.Parent = titleBar
-		
-		local isExpanded = true
-		local originalSize = MainFrame.Size
-		
-		expandBtn.MouseButton1Click:Connect(function()
-			isExpanded = not isExpanded
-			if isExpanded then
-				expandBtn.Text = "−"
-				tweenObj(MainFrame, {Size = originalSize}, 0.3)
-			else
-				expandBtn.Text = "+"
-				tweenObj(MainFrame, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 30)}, 0.3)
-			end
-		end)
-	end
 	
 	-- Контейнер для табов
 	TabContainer = Instance.new("Frame")
@@ -575,6 +563,7 @@ function VortexUI:CreateTab(name, icon)
 	btn.Font = Enum.Font.GothamMedium
 	btn.Parent = TabContainer
 	btn.AutoButtonColor = false
+	btn.Name = name
 	
 	-- Контент таба
 	local content = Instance.new("Frame")
@@ -583,6 +572,7 @@ function VortexUI:CreateTab(name, icon)
 	content.BackgroundTransparency = 1
 	content.Visible = false
 	content.Parent = ContentContainer
+	content.Name = name
 	
 	-- Сохраняем данные таба
 	local tabData = {
@@ -593,7 +583,7 @@ function VortexUI:CreateTab(name, icon)
 	table.insert(TabsList, tabData)
 	
 	-- Если это первый таб - показываем его
-	if not CurrentTab then
+	if #TabsList == 1 then
 		CurrentTab = tabData
 		content.Visible = true
 		btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
@@ -659,7 +649,7 @@ function VortexUI:Destroy()
 	CurrentTab = nil
 end
 
--- Обновление цвета при смене времени
+-- Обновление цвета
 Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
 	local time = Lighting.ClockTime or 12
 	if time > 6 and time < 12 then
