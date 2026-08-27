@@ -8,78 +8,67 @@
 local VortexUI = {}
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
--- Конфиг
+-- Настройки по умолчанию
 local config = {
 	ThemeColor = Color3.fromRGB(0, 200, 255),
 	GlitchEffect = true,
-	Draggable = true,
-	Extensibility = {} -- Для расширений
 }
 
 -- Tween helper
-local function tweenObj(obj, props, time, style)
-	style = style or Enum.EasingStyle.Quad
-	local tween = TweenService:Create(obj, TweenInfo.new(time or 0.2, style, Enum.EasingDirection.Out), props)
+local function tweenObj(obj, props, time)
+	local tween = TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props)
 	tween:Play()
 	return tween
 end
 
--- Переменные UI
-local MainFrame, ScreenGui, DragFrame
-local Tabs = {}
+-- Глобальные переменные
+local ScreenGui = nil
+local MainFrame = nil
+local TabContainer = nil
+local ContentContainer = nil
+local TabsList = {}
 local CurrentTab = nil
-local TabButtons = {}
+local IsDragging = false
+local DragStart = nil
+local StartPos = nil
 
--- ====== ФУНКЦИЯ ПЕРЕТАСКИВАНИЯ (FIXED) ======
-local function makeDraggable(frame, dragFrame)
-	local dragging = false
-	local dragStart, startPos
-	local connections = {}
-	
-	local function onInputBegan(input)
+-- ====== ФУНКЦИЯ ПЕРЕТАСКИВАНИЯ ======
+local function setupDragging(frame)
+	frame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
+			IsDragging = true
+			DragStart = input.Position
+			StartPos = frame.Position
 		end
-	end
+	end)
 	
-	local function onInputEnded(input)
+	frame.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
+			IsDragging = false
 		end
-	end
+	end)
 	
-	local function onInputChanged(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = input.Position - dragStart
-			local newX = startPos.X.Offset + delta.X
-			local newY = startPos.Y.Offset + delta.Y
+	UserInputService.InputChanged:Connect(function(input)
+		if IsDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - DragStart
+			local viewport = workspace.CurrentCamera.ViewportSize
 			
-			-- Ограничения
-			local viewport = game:GetService("Workspace").CurrentCamera.ViewportSize
-			newX = math.max(-frame.AbsoluteSize.X + 50, math.min(newX, viewport.X - 50))
-			newY = math.max(-frame.AbsoluteSize.Y + 50, math.min(newY, viewport.Y - 50))
+			local newX = math.clamp(StartPos.X.Offset + delta.X, -frame.AbsoluteSize.X + 20, viewport.X - 20)
+			local newY = math.clamp(StartPos.Y.Offset + delta.Y, -frame.AbsoluteSize.Y + 20, viewport.Y - 20)
 			
-			frame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+			frame.Position = UDim2.new(StartPos.X.Scale, newX, StartPos.Y.Scale, newY)
 		end
-	end
-	
-	dragFrame.InputBegan:Connect(onInputBegan)
-	dragFrame.InputEnded:Connect(onInputEnded)
-	UserInputService.InputChanged:Connect(onInputChanged)
+	end)
 end
 
 -- ====== СОЗДАНИЕ КНОПКИ ======
-local function createButton(parent, text, callback, yOffset)
+local function createButton(parent, text, callback)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, -10, 0, 30)
-	btn.Position = UDim2.new(0, 5, 0, yOffset or 5 + (#parent:GetChildren() * 35))
+	btn.Position = UDim2.new(0, 5, 0, 5 + (#parent:GetChildren() * 35))
 	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 	btn.BorderSizePixel = 1
 	btn.BorderColor3 = config.ThemeColor
@@ -89,8 +78,7 @@ local function createButton(parent, text, callback, yOffset)
 	btn.Font = Enum.Font.GothamBold
 	btn.Parent = parent
 	btn.AutoButtonColor = false
-	btn.ClipsDescendants = true
-
+	
 	local glitchText = Instance.new("TextLabel")
 	glitchText.Size = UDim2.new(1, 0, 1, 0)
 	glitchText.Position = UDim2.new(0, 2, 0, 0)
@@ -102,39 +90,38 @@ local function createButton(parent, text, callback, yOffset)
 	glitchText.TextTransparency = 1
 	glitchText.Parent = btn
 	glitchText.ZIndex = 0
-
+	
 	btn.MouseEnter:Connect(function()
 		if config.GlitchEffect then
 			glitchText.TextTransparency = 0.5
 			task.wait(0.05)
 			tweenObj(glitchText, {TextTransparency = 1}, 0.1)
-			tweenObj(btn, {BorderColor3 = Color3.fromRGB(255, 255, 255)}, 0.1)
 		end
 		tweenObj(btn, {BackgroundColor3 = Color3.fromRGB(50, 50, 70)}, 0.15)
 	end)
-
+	
 	btn.MouseLeave:Connect(function()
-		tweenObj(btn, {BackgroundColor3 = Color3.fromRGB(30, 30, 40), BorderColor3 = config.ThemeColor}, 0.2)
+		tweenObj(btn, {BackgroundColor3 = Color3.fromRGB(30, 30, 40)}, 0.2)
 	end)
-
+	
 	btn.MouseButton1Click:Connect(function()
 		tweenObj(btn, {Size = UDim2.new(1, -10, 0, 28)}, 0.05)
 		task.wait(0.05)
 		tweenObj(btn, {Size = UDim2.new(1, -10, 0, 30)}, 0.05)
 		if callback then callback() end
 	end)
-
+	
 	return btn
 end
 
 -- ====== СОЗДАНИЕ ТОГГЛА ======
-local function createToggle(parent, text, default, callback, yOffset)
-	local toggleFrame = Instance.new("Frame")
-	toggleFrame.Size = UDim2.new(1, -10, 0, 30)
-	toggleFrame.Position = UDim2.new(0, 5, 0, yOffset or 5 + (#parent:GetChildren() * 35))
-	toggleFrame.BackgroundTransparency = 1
-	toggleFrame.Parent = parent
-
+local function createToggle(parent, text, default, callback)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -10, 0, 30)
+	frame.Position = UDim2.new(0, 5, 0, 5 + (#parent:GetChildren() * 35))
+	frame.BackgroundTransparency = 1
+	frame.Parent = parent
+	
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(0.7, 0, 1, 0)
 	label.BackgroundTransparency = 1
@@ -142,63 +129,59 @@ local function createToggle(parent, text, default, callback, yOffset)
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextSize = 14
 	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Parent = toggleFrame
-
-	local toggleBtn = Instance.new("TextButton")
-	toggleBtn.Size = UDim2.new(0, 50, 0, 22)
-	toggleBtn.Position = UDim2.new(1, -55, 0.5, -11)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-	toggleBtn.BorderSizePixel = 1
-	toggleBtn.BorderColor3 = Color3.fromRGB(80, 80, 90)
-	toggleBtn.Text = ""
-	toggleBtn.Parent = toggleFrame
-	toggleBtn.AutoButtonColor = false
-
+	label.Parent = frame
+	
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 50, 0, 22)
+	btn.Position = UDim2.new(1, -55, 0.5, -11)
+	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+	btn.BorderSizePixel = 1
+	btn.BorderColor3 = Color3.fromRGB(80, 80, 90)
+	btn.Text = ""
+	btn.Parent = frame
+	btn.AutoButtonColor = false
+	
 	local indicator = Instance.new("Frame")
 	indicator.Size = UDim2.new(0, 18, 0, 18)
 	indicator.Position = UDim2.new(0, 2, 0.5, -9)
 	indicator.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 	indicator.BorderSizePixel = 0
-	indicator.Parent = toggleBtn
-
+	indicator.Parent = btn
+	
 	local state = default or false
 	
-	local function updateToggle()
+	local function update()
 		if state then
-			tweenObj(toggleBtn, {BackgroundColor3 = config.ThemeColor}, 0.15)
+			tweenObj(btn, {BackgroundColor3 = config.ThemeColor}, 0.15)
 			tweenObj(indicator, {Position = UDim2.new(1, -20, 0.5, -9)}, 0.15)
 			indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 		else
-			tweenObj(toggleBtn, {BackgroundColor3 = Color3.fromRGB(60, 60, 70)}, 0.15)
+			tweenObj(btn, {BackgroundColor3 = Color3.fromRGB(60, 60, 70)}, 0.15)
 			tweenObj(indicator, {Position = UDim2.new(0, 2, 0.5, -9)}, 0.15)
 			indicator.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 		end
-		
-		if callback then
-			callback(state)
-		end
+		if callback then callback(state) end
 	end
-
-	toggleBtn.MouseButton1Click:Connect(function()
-		state = not state
-		updateToggle()
-	end)
-
-	updateToggle()
 	
-	return toggleFrame
+	btn.MouseButton1Click:Connect(function()
+		state = not state
+		update()
+	end)
+	
+	update()
+	return frame
 end
 
--- ====== СОЗДАНИЕ LABEL С ОПЦИЯМИ ======
+-- ====== СОЗДАНИЕ LABEL ======
 local function createLabel(parent, text, options)
 	options = options or {}
 	
-	local labelFrame = Instance.new("Frame")
-	labelFrame.Size = UDim2.new(1, -10, 0, options.Height or 25)
-	labelFrame.Position = UDim2.new(0, 5, 0, options.Position or 5 + (#parent:GetChildren() * (options.Height or 30)))
-	labelFrame.BackgroundTransparency = 1
-	labelFrame.Parent = parent
-
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -10, 0, options.Height or 25)
+	frame.Position = UDim2.new(0, 5, 0, options.Position or 5 + (#parent:GetChildren() * (options.Height or 30)))
+	frame.BackgroundTransparency = 1
+	frame.Parent = parent
+	
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
@@ -207,69 +190,109 @@ local function createLabel(parent, text, options)
 	label.TextSize = options.Size or 14
 	label.Font = options.Font or Enum.Font.GothamMedium
 	label.TextXAlignment = options.Alignment or Enum.TextXAlignment.Left
-	label.TextYAlignment = Enum.TextYAlignment.Center
-	label.Parent = labelFrame
-
-	-- Если гиперссылка
+	label.Parent = frame
+	
+	-- Гиперссылка (открывает сайт)
 	if options.Link then
 		label.TextColor3 = Color3.fromRGB(100, 200, 255)
 		label.Text = text .. " 🔗"
 		
-		local linkBtn = Instance.new("TextButton")
-		linkBtn.Size = UDim2.new(1, 0, 1, 0)
-		linkBtn.BackgroundTransparency = 1
-		linkBtn.Text = ""
-		linkBtn.Parent = labelFrame
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, 0, 1, 0)
+		btn.BackgroundTransparency = 1
+		btn.Text = ""
+		btn.Parent = frame
 		
-		linkBtn.MouseButton1Click:Connect(function()
+		btn.MouseButton1Click:Connect(function()
 			if options.Link:match("^https?://") then
-				setclipboard(options.Link)
-				game:GetService("StarterGui"):SetCore("SendNotification", {
-					Title = "Ссылка скопирована!",
-					Text = options.Link,
-					Duration = 3
-				})
+				-- Пытаемся открыть ссылку
+				local success, err = pcall(function()
+					-- Для Roblox используем setclipboard если ссылка
+					setclipboard(options.Link)
+					game:GetService("StarterGui"):SetCore("SendNotification", {
+						Title = "Ссылка скопирована!",
+						Text = "Открой в браузере: " .. options.Link,
+						Duration = 5
+					})
+				end)
+				if not success then
+					print("Не удалось скопировать ссылку")
+				end
 			end
 		end)
 		
-		linkBtn.MouseEnter:Connect(function()
+		btn.MouseEnter:Connect(function()
 			tweenObj(label, {TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
 		end)
 		
-		linkBtn.MouseLeave:Connect(function()
+		btn.MouseLeave:Connect(function()
 			tweenObj(label, {TextColor3 = Color3.fromRGB(100, 200, 255)}, 0.2)
 		end)
 	end
-
-	-- Если кнопка с действием
-	if options.Action then
-		local actionBtn = Instance.new("TextButton")
-		actionBtn.Size = UDim2.new(1, 0, 1, 0)
-		actionBtn.BackgroundTransparency = 1
-		actionBtn.Text = ""
-		actionBtn.Parent = labelFrame
+	
+	-- Копирование в буфер обмена
+	if options.CopyToClipboard then
+		label.TextColor3 = Color3.fromRGB(200, 255, 200)
+		label.Text = text .. " 📋"
 		
-		actionBtn.MouseButton1Click:Connect(options.Action)
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, 0, 1, 0)
+		btn.BackgroundTransparency = 1
+		btn.Text = ""
+		btn.Parent = frame
 		
-		actionBtn.MouseEnter:Connect(function()
+		btn.MouseButton1Click:Connect(function()
+			local success, err = pcall(function()
+				setclipboard(text)
+				game:GetService("StarterGui"):SetCore("SendNotification", {
+					Title = "Скопировано!",
+					Text = "Текст скопирован в буфер обмена",
+					Duration = 2
+				})
+			end)
+			if not success then
+				print("Не удалось скопировать текст")
+			end
+		end)
+		
+		btn.MouseEnter:Connect(function()
 			tweenObj(label, {TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
 		end)
 		
-		actionBtn.MouseLeave:Connect(function()
+		btn.MouseLeave:Connect(function()
+			tweenObj(label, {TextColor3 = Color3.fromRGB(200, 255, 200)}, 0.2)
+		end)
+	end
+	
+	-- Действие при нажатии
+	if options.Action then
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, 0, 1, 0)
+		btn.BackgroundTransparency = 1
+		btn.Text = ""
+		btn.Parent = frame
+		
+		btn.MouseButton1Click:Connect(options.Action)
+		
+		btn.MouseEnter:Connect(function()
+			tweenObj(label, {TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
+		end)
+		
+		btn.MouseLeave:Connect(function()
 			tweenObj(label, {TextColor3 = options.Color or Color3.fromRGB(200, 200, 200)}, 0.2)
 		end)
 	end
-
-	return labelFrame
+	
+	return frame
 end
 
--- ====== СОЗДАНИЕ СЛАЙДЕРА С ПОЛЗУНКОМ (FIXED) ======
-local function createSlider(parent, text, min, max, default, callback, yOffset)
-	local sliderFrame = Instance.new("Frame")
-	sliderFrame.Size = UDim2.new(1, -10, 0, 40)
-	sliderFrame.Position = UDim2.new(0, 5, 0, yOffset or 5 + (#parent:GetChildren() * 40))
-	sliderFrame.BackgroundTransparency = 1
-	sliderFrame.Parent = parent
+-- ====== СОЗДАНИЕ СЛАЙДЕРА ======
+local function createSlider(parent, text, min, max, default, callback)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -10, 0, 40)
+	frame.Position = UDim2.new(0, 5, 0, 5 + (#parent:GetChildren() * 40))
+	frame.BackgroundTransparency = 1
+	frame.Parent = parent
 	
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(0.6, 0, 0.5, 0)
@@ -279,7 +302,7 @@ local function createSlider(parent, text, min, max, default, callback, yOffset)
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextSize = 14
 	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Parent = sliderFrame
+	label.Parent = frame
 	
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Size = UDim2.new(0.3, 0, 0.5, 0)
@@ -289,34 +312,33 @@ local function createSlider(parent, text, min, max, default, callback, yOffset)
 	valueLabel.TextColor3 = config.ThemeColor
 	valueLabel.TextSize = 14
 	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-	valueLabel.Parent = sliderFrame
+	valueLabel.Parent = frame
 	
-	local sliderBg = Instance.new("Frame")
-	sliderBg.Size = UDim2.new(1, 0, 0, 4)
-	sliderBg.Position = UDim2.new(0, 0, 0.7, 0)
-	sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-	sliderBg.BorderSizePixel = 0
-	sliderBg.Parent = sliderFrame
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1, 0, 0, 4)
+	bg.Position = UDim2.new(0, 0, 0.7, 0)
+	bg.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+	bg.BorderSizePixel = 0
+	bg.Parent = frame
 	
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.new(0.5, 0, 1, 0)
 	fill.BackgroundColor3 = config.ThemeColor
 	fill.BorderSizePixel = 0
-	fill.Parent = sliderBg
+	fill.Parent = bg
 	
-	-- ПОЛЗУНОК (добавили)
 	local sliderBtn = Instance.new("TextButton")
 	sliderBtn.Size = UDim2.new(0, 16, 0, 16)
 	sliderBtn.Position = UDim2.new(0.5, -8, 0.7, -8)
 	sliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	sliderBtn.BorderSizePixel = 0
 	sliderBtn.Text = ""
-	sliderBtn.Parent = sliderFrame
+	sliderBtn.Parent = frame
 	
 	local dragging = false
 	local value = default or min
 	
-	local function updateSlider(val)
+	local function update(val)
 		value = math.clamp(val, min, max)
 		local percent = (value - min) / (max - min)
 		fill.Size = UDim2.new(percent, 0, 1, 0)
@@ -335,306 +357,318 @@ local function createSlider(parent, text, min, max, default, callback, yOffset)
 		end
 	end)
 	
-	sliderFrame.MouseEnter:Connect(function()
-		sliderBtn.BackgroundColor3 = config.ThemeColor
-	end)
-	
-	sliderFrame.MouseLeave:Connect(function()
-		sliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	end)
-	
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local mousePos = input.Position.X
-			local absPos = sliderFrame.AbsolutePosition.X
-			local absSize = sliderFrame.AbsoluteSize.X
-			local percent = math.clamp((mousePos - absPos) / absSize, 0, 1)
-			local newValue = min + (max - min) * percent
-			updateSlider(newValue)
+			local pos = input.Position.X
+			local absPos = frame.AbsolutePosition.X
+			local absSize = frame.AbsoluteSize.X
+			local percent = math.clamp((pos - absPos) / absSize, 0, 1)
+			update(min + (max - min) * percent)
 		end
 	end)
 	
-	updateSlider(value)
-	
-	return sliderFrame
+	update(value)
+	return frame
 end
 
--- ====== ОСНОВНЫЕ ФУНКЦИИ ======
+-- ====== СОЗДАНИЕ ДРОПДАУНА ======
+local function createDropdown(parent, text, options, default, callback)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -10, 0, 30)
+	frame.Position = UDim2.new(0, 5, 0, 5 + (#parent:GetChildren() * 35))
+	frame.BackgroundTransparency = 1
+	frame.Parent = parent
+	
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(0.5, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = frame
+	
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.4, 0, 1, 0)
+	btn.Position = UDim2.new(0.6, 0, 0, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+	btn.BorderSizePixel = 1
+	btn.BorderColor3 = config.ThemeColor
+	btn.Text = default or options[1] or "Выбери"
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamMedium
+	btn.Parent = frame
+	
+	local selected = default or options[1]
+	local index = 1
+	
+	for i, opt in ipairs(options) do
+		if opt == selected then
+			index = i
+			break
+		end
+	end
+	
+	btn.MouseButton1Click:Connect(function()
+		index = index % #options + 1
+		selected = options[index]
+		btn.Text = selected
+		if callback then callback(selected) end
+	end)
+	
+	return frame
+end
+
+-- ====== ОСНОВНЫЕ ФУНКЦИИ БИБЛИОТЕКИ ======
 
 function VortexUI:CreateWindow(title, options)
 	options = options or {}
 	
-	if MainFrame then 
-		VortexUI:Destroy()
+	-- Удаляем старое окно
+	if ScreenGui then
+		ScreenGui:Destroy()
+		ScreenGui = nil
+		MainFrame = nil
+		TabsList = {}
+		CurrentTab = nil
 		task.wait(0.1)
 	end
-
+	
+	-- Создаём ScreenGui
 	ScreenGui = Instance.new("ScreenGui")
 	ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	ScreenGui.Name = "VortexUI"
 	ScreenGui.ResetOnSpawn = false
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-	-- Главное окно
+	
+	-- Создаём главное окно
 	MainFrame = Instance.new("Frame")
 	MainFrame.Size = options.Size or UDim2.new(0, 500, 0, 400)
 	MainFrame.Position = options.Position or UDim2.new(0.5, -250, 0.5, -200)
 	MainFrame.BackgroundColor3 = options.BackgroundColor or Color3.fromRGB(20, 20, 30)
 	MainFrame.BorderSizePixel = 2
 	MainFrame.BorderColor3 = config.ThemeColor
+	MainFrame.BackgroundTransparency = options.Transparency or 0
 	MainFrame.ClipsDescendants = true
 	MainFrame.Parent = ScreenGui
 	MainFrame.ZIndex = 1
-	MainFrame.BackgroundTransparency = options.Transparency or 0
-
+	
 	-- Заголовок
-	DragFrame = Instance.new("Frame")
-	DragFrame.Size = UDim2.new(1, 0, 0, 30)
-	DragFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-	DragFrame.BorderSizePixel = 0
-	DragFrame.Parent = MainFrame
+	local titleBar = Instance.new("Frame")
+	titleBar.Size = UDim2.new(1, 0, 0, 30)
+	titleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+	titleBar.BorderSizePixel = 0
+	titleBar.Parent = MainFrame
 	
 	-- Перетаскивание
 	if options.Draggable == nil or options.Draggable == true then
-		makeDraggable(MainFrame, DragFrame)
+		setupDragging(MainFrame)
 	end
-
+	
+	-- Заголовок текст
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -60, 1, 0)
+	titleLabel.Position = UDim2.new(0, 10, 0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = title or "Vortex UI"
 	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	titleLabel.TextSize = 18
 	titleLabel.Font = Enum.Font.GothamBold
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Position = UDim2.new(0, 10, 0, 0)
-	titleLabel.Parent = DragFrame
-
+	titleLabel.Parent = titleBar
+	
 	-- Кнопка закрытия
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Size = UDim2.new(0, 30, 1, 0)
 	closeBtn.Position = UDim2.new(1, -30, 0, 0)
 	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
+	closeBtn.BorderSizePixel = 0
 	closeBtn.Text = "✕"
 	closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 	closeBtn.TextSize = 16
 	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.BorderSizePixel = 0
-	closeBtn.Parent = DragFrame
+	closeBtn.Parent = titleBar
 	closeBtn.MouseButton1Click:Connect(function()
 		VortexUI:Destroy()
 	end)
-
+	
+	-- Кнопка сворачивания (Expand/Collapse)
+	if options.Expandable then
+		local expandBtn = Instance.new("TextButton")
+		expandBtn.Size = UDim2.new(0, 30, 1, 0)
+		expandBtn.Position = UDim2.new(1, -60, 0, 0)
+		expandBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+		expandBtn.BorderSizePixel = 0
+		expandBtn.Text = "−"
+		expandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		expandBtn.TextSize = 16
+		expandBtn.Font = Enum.Font.GothamBold
+		expandBtn.Parent = titleBar
+		
+		local isExpanded = true
+		local originalSize = MainFrame.Size
+		
+		expandBtn.MouseButton1Click:Connect(function()
+			isExpanded = not isExpanded
+			if isExpanded then
+				expandBtn.Text = "−"
+				tweenObj(MainFrame, {Size = originalSize}, 0.3)
+			else
+				expandBtn.Text = "+"
+				tweenObj(MainFrame, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 30)}, 0.3)
+			end
+		end)
+	end
+	
 	-- Контейнер для табов
-	local tabContainer = Instance.new("Frame")
-	tabContainer.Size = UDim2.new(0, 120, 1, -30)
-	tabContainer.Position = UDim2.new(0, 0, 0, 30)
-	tabContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-	tabContainer.BorderSizePixel = 0
-	tabContainer.Parent = MainFrame
-	tabContainer.Name = "TabContainer"
-
+	TabContainer = Instance.new("Frame")
+	TabContainer.Size = UDim2.new(0, 120, 1, -30)
+	TabContainer.Position = UDim2.new(0, 0, 0, 30)
+	TabContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+	TabContainer.BorderSizePixel = 0
+	TabContainer.Parent = MainFrame
+	TabContainer.Name = "TabContainer"
+	
 	-- Контейнер для содержимого
-	local contentContainer = Instance.new("Frame")
-	contentContainer.Size = UDim2.new(1, -120, 1, -30)
-	contentContainer.Position = UDim2.new(0, 120, 0, 30)
-	contentContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-	contentContainer.BorderSizePixel = 0
-	contentContainer.Parent = MainFrame
-	contentContainer.Name = "ContentContainer"
-
-	VortexUI._tabContainer = tabContainer
-	VortexUI._contentContainer = contentContainer
+	ContentContainer = Instance.new("Frame")
+	ContentContainer.Size = UDim2.new(1, -120, 1, -30)
+	ContentContainer.Position = UDim2.new(0, 120, 0, 30)
+	ContentContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+	ContentContainer.BorderSizePixel = 0
+	ContentContainer.Parent = MainFrame
+	ContentContainer.Name = "ContentContainer"
+	
+	-- Сохраняем ссылки
 	VortexUI._mainFrame = MainFrame
-	VortexUI._dragFrame = DragFrame
-
-	-- Сохраняем опции
-	config.Extensibility = options.Extensibility or {}
-
-	-- Пульсация границы
+	VortexUI._tabContainer = TabContainer
+	VortexUI._contentContainer = ContentContainer
+	
+	-- Анимация границы
 	task.spawn(function()
 		while MainFrame and MainFrame.Parent do
-			local color = config.ThemeColor
-			tweenObj(MainFrame, {BorderColor3 = color}, 1)
+			tweenObj(MainFrame, {BorderColor3 = config.ThemeColor}, 1)
 			task.wait(3)
 		end
 	end)
-
+	
 	return VortexUI
 end
 
 function VortexUI:CreateTab(name, icon)
-	if not MainFrame then 
-		warn("Сначала создай окно через CreateWindow!")
-		return 
+	if not MainFrame then
+		warn("Сначала создай окно через CreateWindow()")
+		return nil
 	end
 	
-	local tabBtn = Instance.new("TextButton")
-	tabBtn.Size = UDim2.new(1, -10, 0, 30)
-	tabBtn.Position = UDim2.new(0, 5, 5 + #Tabs * 35, 0)
-	tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-	tabBtn.BorderSizePixel = 1
-	tabBtn.BorderColor3 = Color3.fromRGB(40, 40, 50)
-	tabBtn.Text = "  " .. (icon or "•") .. " " .. name
-	tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-	tabBtn.TextSize = 14
-	tabBtn.TextXAlignment = Enum.TextXAlignment.Left
-	tabBtn.Font = Enum.Font.GothamMedium
-	tabBtn.Parent = VortexUI._tabContainer
-	tabBtn.AutoButtonColor = false
-	tabBtn.Name = name
-
-	local tabContent = Instance.new("Frame")
-	tabContent.Size = UDim2.new(1, -20, 1, -20)
-	tabContent.Position = UDim2.new(0, 10, 0, 10)
-	tabContent.BackgroundTransparency = 1
-	tabContent.Visible = false
-	tabContent.Parent = VortexUI._contentContainer
-	tabContent.Name = name
-
+	-- Кнопка таба
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, -10, 0, 30)
+	btn.Position = UDim2.new(0, 5, 5 + #TabsList * 35, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+	btn.BorderSizePixel = 1
+	btn.BorderColor3 = Color3.fromRGB(40, 40, 50)
+	btn.Text = "  " .. (icon or "•") .. " " .. name
+	btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+	btn.TextSize = 14
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.Font = Enum.Font.GothamMedium
+	btn.Parent = TabContainer
+	btn.AutoButtonColor = false
+	
+	-- Контент таба
+	local content = Instance.new("Frame")
+	content.Size = UDim2.new(1, -20, 1, -20)
+	content.Position = UDim2.new(0, 10, 0, 10)
+	content.BackgroundTransparency = 1
+	content.Visible = false
+	content.Parent = ContentContainer
+	
+	-- Сохраняем данные таба
 	local tabData = {
-		Button = tabBtn,
-		Content = tabContent,
+		Button = btn,
+		Content = content,
 		Name = name
 	}
-	table.insert(Tabs, tabData)
-	table.insert(TabButtons, tabBtn)
-
+	table.insert(TabsList, tabData)
+	
+	-- Если это первый таб - показываем его
 	if not CurrentTab then
 		CurrentTab = tabData
-		tabContent.Visible = true
-		tabBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-		tabBtn.BorderColor3 = config.ThemeColor
+		content.Visible = true
+		btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+		btn.BorderColor3 = config.ThemeColor
 	end
-
-	tabBtn.MouseButton1Click:Connect(function()
-		for _, t in pairs(Tabs) do
-			t.Content.Visible = false
-			t.Button.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-			t.Button.BorderColor3 = Color3.fromRGB(40, 40, 50)
+	
+	-- Обработчик клика по табу
+	btn.MouseButton1Click:Connect(function()
+		-- Скрываем все табы
+		for _, tab in ipairs(TabsList) do
+			tab.Content.Visible = false
+			tab.Button.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+			tab.Button.BorderColor3 = Color3.fromRGB(40, 40, 50)
 		end
-		tabContent.Visible = true
-		tabBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-		tabBtn.BorderColor3 = config.ThemeColor
+		
+		-- Показываем выбранный
+		content.Visible = true
+		btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+		btn.BorderColor3 = config.ThemeColor
 		CurrentTab = tabData
 	end)
-
+	
 	-- Возвращаем объект с методами
-	return {
+	local tabObject = {
 		AddButton = function(self, text, callback)
-			createButton(tabContent, text, callback)
+			createButton(content, text, callback)
 			return self
 		end,
 		
 		AddToggle = function(self, text, default, callback)
-			createToggle(tabContent, text, default, callback)
+			createToggle(content, text, default, callback)
 			return self
 		end,
 		
 		AddLabel = function(self, text, options)
-			createLabel(tabContent, text, options or {})
+			createLabel(content, text, options or {})
 			return self
 		end,
 		
 		AddSlider = function(self, text, min, max, default, callback)
-			createSlider(tabContent, text, min, max, default, callback)
+			createSlider(content, text, min, max, default, callback)
 			return self
 		end,
 		
 		AddDropdown = function(self, text, options, default, callback)
-			-- Дропдаун для полноты
-			local dropdownFrame = Instance.new("Frame")
-			dropdownFrame.Size = UDim2.new(1, -10, 0, 30)
-			dropdownFrame.Position = UDim2.new(0, 5, 0, 5 + (#tabContent:GetChildren() * 35))
-			dropdownFrame.BackgroundTransparency = 1
-			dropdownFrame.Parent = tabContent
-			
-			local label = Instance.new("TextLabel")
-			label.Size = UDim2.new(0.5, 0, 1, 0)
-			label.BackgroundTransparency = 1
-			label.Text = text
-			label.TextColor3 = Color3.fromRGB(255, 255, 255)
-			label.TextSize = 14
-			label.TextXAlignment = Enum.TextXAlignment.Left
-			label.Parent = dropdownFrame
-			
-			local dropdownBtn = Instance.new("TextButton")
-			dropdownBtn.Size = UDim2.new(0.4, 0, 1, 0)
-			dropdownBtn.Position = UDim2.new(0.6, 0, 0, 0)
-			dropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-			dropdownBtn.BorderSizePixel = 1
-			dropdownBtn.BorderColor3 = config.ThemeColor
-			dropdownBtn.Text = default or options[1] or "Выбери"
-			dropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-			dropdownBtn.TextSize = 13
-			dropdownBtn.Font = Enum.Font.GothamMedium
-			dropdownBtn.Parent = dropdownFrame
-			
-			local selected = default or options[1]
-			
-			dropdownBtn.MouseButton1Click:Connect(function()
-				-- Простой выбор (можно сделать выпадающий список, но это сложнее)
-				local newIndex = 1
-				for i, opt in ipairs(options) do
-					if opt == selected then
-						newIndex = i % #options + 1
-						break
-					end
-				end
-				selected = options[newIndex]
-				dropdownBtn.Text = selected
-				if callback then callback(selected) end
-			end)
-			
-			return self
-		end,
-		
-		AddBoxSlider = function(self, text, options)
-			-- BoxSlider для точного размещения (таблица с параметрами)
-			local boxFrame = Instance.new("Frame")
-			boxFrame.Size = UDim2.new(1, -10, 0, options.Height or 30)
-			boxFrame.Position = UDim2.new(0, 5, 0, options.Position or 5 + (#tabContent:GetChildren() * 35))
-			boxFrame.BackgroundColor3 = options.BackgroundColor or Color3.fromRGB(20, 20, 30)
-			boxFrame.BorderSizePixel = options.Border or 1
-			boxFrame.BorderColor3 = options.BorderColor or config.ThemeColor
-			boxFrame.Parent = tabContent
-			
-			if options.Title then
-				local title = Instance.new("TextLabel")
-				title.Size = UDim2.new(1, 0, 0, 20)
-				title.BackgroundTransparency = 1
-				title.Text = options.Title
-				title.TextColor3 = Color3.fromRGB(200, 200, 200)
-				title.TextSize = options.TitleSize or 12
-				title.Font = Enum.Font.GothamMedium
-				title.Parent = boxFrame
-			end
-			
-			-- Добавляем элементы из таблицы
-			for _, element in ipairs(options.Elements or {}) do
-				if element.Type == "button" then
-					createButton(boxFrame, element.Text, element.Callback)
-				elseif element.Type == "toggle" then
-					createToggle(boxFrame, element.Text, element.Default, element.Callback)
-				elseif element.Type == "label" then
-					createLabel(boxFrame, element.Text, element.Options or {})
-				end
-			end
-			
+			createDropdown(content, text, options, default, callback)
 			return self
 		end
 	}
+	
+	return tabObject
 end
 
 function VortexUI:Destroy()
-	if ScreenGui then 
-		ScreenGui:Destroy() 
+	if ScreenGui then
+		ScreenGui:Destroy()
 	end
-	MainFrame = nil
 	ScreenGui = nil
-	Tabs = {}
+	MainFrame = nil
+	TabContainer = nil
+	ContentContainer = nil
+	TabsList = {}
 	CurrentTab = nil
-	TabButtons = {}
 end
+
+-- Обновление цвета при смене времени
+Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	local time = Lighting.ClockTime or 12
+	if time > 6 and time < 12 then
+		config.ThemeColor = Color3.fromRGB(0, 200, 255)
+	elseif time >= 12 and time < 18 then
+		config.ThemeColor = Color3.fromRGB(255, 150, 0)
+	else
+		config.ThemeColor = Color3.fromRGB(200, 0, 255)
+	end
+end)
 
 return VortexUI
