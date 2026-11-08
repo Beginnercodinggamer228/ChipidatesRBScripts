@@ -9,6 +9,8 @@ AND: Environment.lua, ESP.lua. And i`m not save 16Notice.lua (Sorry, i`m foggot 
 Because i`m just cut 16Notice line :(
 ]]
 
+warn("hi")
+
 local LoadStart = tick()
 
 if shared.Hastelepasta then
